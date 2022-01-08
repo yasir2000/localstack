@@ -660,6 +660,12 @@ class SqsProvider(SqsApi, ServiceLifecycleHook):
     def shutdown(self):
         self._inflight_worker.stop()
 
+    def on_after_init(self):
+        from localstack.aws.handlers import process_custom_service_rules
+        from localstack.services.sqs.handlers import SqsQueueActionHandler
+
+        process_custom_service_rules.add(SqsQueueActionHandler())
+
     def on_before_start(self):
         self.start()
 
