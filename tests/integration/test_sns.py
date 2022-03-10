@@ -1393,3 +1393,26 @@ def test_empty_sns_message(sns_client, sqs_client, sns_topic, sqs_queue):
         )["Attributes"]["ApproximateNumberOfMessages"]
         == "0"
     )
+
+
+class TestSNSProvider:
+    def test_publish_unicode_chars(
+        self, sqs_client, sns_client, sns_create_topic, sqs_queue, sqs_queue_arn
+    ):
+        queue_url = sqs_queue
+        queue_arn = sqs_queue_arn(queue_url)
+        topic_arn = sns_create_topic()["TopicArn"]
+        sns_client.subscribe(TopicArn=topic_arn, Protocol="sqs", Endpoint=queue_arn)
+
+        # publish message to SNS, receive it from SQS, assert that messages are equal
+        message = 'ö§a1"_!?,. £$-'
+        sns_client.publish(TopicArn=topic_arn, Message=message)
+
+        def check_message():
+            msgs = sqs_client.receive_message(QueueUrl=queue_url)
+            msg_received = msgs["Messages"][0]
+            msg_received = json.loads(to_str(msg_received["Body"]))
+            msg_received = msg_received["Message"]
+            assert message == msg_received
+
+        retry(check_message, retries=PUBLICATION_RETRIES, sleep=PUBLICATION_TIMEOUT)
