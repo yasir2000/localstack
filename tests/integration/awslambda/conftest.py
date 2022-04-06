@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+from datetime import datetime
 from typing import Optional
 
 import pytest
@@ -39,11 +40,14 @@ def fixture_snapshot(request: SubRequest):
     sm.persist_state()
 
 
+ARN_PATTERN = re.compile(
+    r"arn:(aws[a-zA-Z-]*)?:([a-zA-Z0-9-_.]+)?:([a-z]{2}(-gov)?-[a-z]+-\d{1})?:(\d{12})?(:[^:\\\"]+)+"
+)
+
+# TODO: instead of skipping, make zip building reproducable
 # TODO: ignore => replace/match instead
 IGNORE_VALUE_PATTERNS = [
-    re.compile(
-        r"arn:(aws[a-zA-Z-]*)?:([a-zA-Z0-9-_.]+)?:([a-z]{2}(-gov)?-[a-z]+-\d{1})?:\d{12}(:.+)+"
-    ),  # generalized ARN (also shorthand versions)
+    # generalized ARN (also shorthand versions)
     re.compile(
         r"[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
     ),  # UUID
@@ -54,11 +58,13 @@ IGNORE_VALUE_PATTERNS = [
     # TODO: s3 bucket URL
     # TODO: apigateway
 ]
+
 IGNORE_KEY_PATTERNS = [
-    re.compile(r"^.*Arn$"),
+    # re.compile(r"^.*Arn$"),
     re.compile(r"^.*Name$"),
     re.compile(r"^.*ResponseMetadata$"),
     re.compile(r"^.*Location$"),
+    re.compile(r"^.*sha.*$", flags=re.RegexFlag.IGNORECASE),
 ]
 
 
@@ -69,7 +75,10 @@ def pytest_runtest_makereport(item: Item, call: CallInfo[None]) -> TestReport | 
 
     if call.excinfo is not None and isinstance(call.excinfo.value, SnapshotAssertionError):
         err: SnapshotAssertionError = call.excinfo.value
-        report.longrepr = err.result.result.__repr__()
+        # report.longrepr = err.result.result.pretty()
+        # report.longrepr = err.result.result.__repr__()
+        # report.longrepr = err.result.result.to_json()
+        report.longrepr = json.dumps(json.loads(err.result.result.to_json()), indent=2)
     return report
 
 
@@ -124,8 +133,9 @@ class SnapshotManager:
             self.state[scope_key] = {}
 
     def persist_state(self) -> None:
-        with open(self.file_path, "w") as fd:
-            fd.write(json.dumps(self.state, indent=2))
+        if self.write:
+            with open(self.file_path, "w") as fd:
+                fd.write(json.dumps(self.state, indent=2))
 
     def load_state(self) -> dict:
         try:
@@ -202,7 +212,13 @@ class SnapshotManager:
                 else:
                     new_dict[k] = read_val
 
+            elif isinstance(v, datetime):  # TODO: remove when structural matching is implemented
+                new_dict[k] = "2022-04-06T16:46:20.061000+02:00"
+                # new_dict[k] = v.isoformat()
+
             else:
                 new_dict[k] = v
 
-        return new_dict
+        tmp_str = json.dumps(new_dict)
+        tmp_str = re.sub(ARN_PATTERN, "<arn>", tmp_str)
+        return json.loads(tmp_str)

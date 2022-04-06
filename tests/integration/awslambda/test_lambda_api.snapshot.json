@@ -1,36 +1,15 @@
 {
-  "tests/integration/awslambda/test_lambda_api.py::test_extract_state": {
-    "example": {
-      "Runtime": "python3.8",
-      "Handler": "index.handler",
-      "CodeSize": 194,
-      "Description": "",
-      "Timeout": 3,
-      "MemorySize": 128,
-      "CodeSha256": "oWELOby+1O7S123EXU6g0evsauTZ8NJNMVdJoGwNqh8=",
-      "Version": "$LATEST",
-      "TracingConfig": {
-        "Mode": "PassThrough"
-      },
-      "PackageType": "Zip",
-      "Architectures": [
-        "x86_64"
-      ],
-      "EphemeralStorage": {
-        "Size": 512
-      }
-    }
-  },
   "tests/integration/awslambda/test_lambda_api.py::TestLambdaAsfApi::test_basic_invoke": {
     "lambda_get_fn": {
       "Configuration": {
+        "FunctionArn": "<arn>",
         "Runtime": "python3.9",
+        "Role": "<arn>",
         "Handler": "index.handler",
         "CodeSize": 276,
         "Description": "",
         "Timeout": 3,
         "MemorySize": 128,
-        "CodeSha256": "zMYxuJ0J/jyyHt1fYZUuOqZ/Gc9Gm64Wp8fT6XNiXro=",
         "Version": "$LATEST",
         "TracingConfig": {
           "Mode": "PassThrough"

@@ -77,12 +77,7 @@ def create_lambda_function_aws(
             LOG.debug(f"Unable to delete function {arn=} in cleanup")
 
 
-code = """
-def handler(event,ctx):
-    print("hello world!")
-"""
-
-
+@pytest.mark.snapshot
 @pytest.mark.aws_compatible
 class TestLambdaAsfApi:
     def test_basic_invoke(
