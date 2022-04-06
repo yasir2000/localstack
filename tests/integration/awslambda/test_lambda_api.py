@@ -85,7 +85,9 @@ def handler(event,ctx):
 
 @pytest.mark.aws_compatible
 class TestLambdaAsfApi:
-    def test_basic_invoke(self, lambda_client, create_lambda_function_aws, lambda_su_role):
+    def test_basic_invoke(
+        self, lambda_client, create_lambda_function_aws, lambda_su_role, snapshot
+    ):
         fn_name = f"ls-fn-{short_uid()}"
         with open(os.path.join(os.path.dirname(__file__), "functions/echo.zip"), "rb") as f:
             create_lambda_function_aws(
@@ -97,5 +99,8 @@ class TestLambdaAsfApi:
                 Runtime="python3.9",
             )
 
+        get_fn_result = lambda_client.get_function(FunctionName=fn_name)
+        snapshot.assert_match("lambda_get_fn", get_fn_result)
+
         invoke_result = lambda_client.invoke(FunctionName=fn_name, Payload=bytes("{}", "utf-8"))
-        assert 200 == invoke_result["StatusCode"]
+        snapshot.assert_match("lambda_invoke_result", invoke_result)
