@@ -69,7 +69,7 @@ IGNORE_KEY_PATTERNS = [
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item: Item, call: CallInfo[None]) -> TestReport | None:
+def pytest_runtest_makereport(item: Item, call: CallInfo[None]) -> Optional[TestReport]:
     result: _Result = yield
     report: TestReport = result.result
 
