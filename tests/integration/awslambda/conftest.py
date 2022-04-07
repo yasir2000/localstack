@@ -6,8 +6,6 @@ from datetime import datetime
 from typing import Optional
 
 import pytest
-from _pytest.config import PytestPluginManager
-from _pytest.config.argparsing import Parser
 from _pytest.fixtures import SubRequest
 from _pytest.nodes import Item
 from _pytest.reports import TestReport
@@ -18,12 +16,6 @@ from deepdiff.operator import BaseOperator
 from pluggy.callers import _Result
 
 LOG = logging.getLogger(__name__)
-
-
-@pytest.hookimpl
-def pytest_addoption(parser: Parser, pluginmanager: PytestPluginManager):
-    parser.addoption("--snapshot-write", action="store_true")
-    parser.addoption("--snapshot-strict", action="store_true")
 
 
 @pytest.fixture(name="snapshot", scope="function")
