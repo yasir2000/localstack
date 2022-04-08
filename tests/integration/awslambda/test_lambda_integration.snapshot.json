@@ -494,5 +494,293 @@
         }
       ]
     }
+  },
+  "tests/integration/awslambda/test_lambda_integration.py::TestLambdaEventSourceMappings::test_event_source_mapping_default_batch_size": {
+    "create_esm": {
+      "ResponseMetadata": "<response-metadata>",
+      "UUID": "<uuid>",
+      "BatchSize": 10,
+      "MaximumBatchingWindowInSeconds": 0,
+      "EventSourceArn": "<arn>",
+      "FunctionArn": "<arn>",
+      "LastModified": "<date>",
+      "State": "Creating",
+      "StateTransitionReason": "USER_INITIATED",
+      "FunctionResponseTypes": []
+    },
+    "create_table_result": {
+      "TableDescription": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "<name>",
+            "AttributeType": "S"
+          }
+        ],
+        "TableName": "<name>",
+        "KeySchema": [
+          {
+            "AttributeName": "<name>",
+            "KeyType": "HASH"
+          }
+        ],
+        "TableStatus": "CREATING",
+        "CreationDateTime": "<date>",
+        "ProvisionedThroughput": {
+          "NumberOfDecreasesToday": 0,
+          "ReadCapacityUnits": 10,
+          "WriteCapacityUnits": 10
+        },
+        "TableSizeBytes": 0,
+        "ItemCount": 0,
+        "TableArn": "<arn>",
+        "TableId": "<uuid>",
+        "StreamSpecification": {
+          "StreamEnabled": true,
+          "StreamViewType": "NEW_IMAGE"
+        },
+        "LatestStreamLabel": "<stream-label>",
+        "LatestStreamArn": "<arn>"
+      },
+      "ResponseMetadata": "<response-metadata>"
+    },
+    "create_esm_withlatest_stream_arn": {
+      "ResponseMetadata": "<response-metadata>",
+      "UUID": "<uuid>",
+      "StartingPosition": "LATEST",
+      "BatchSize": 100,
+      "MaximumBatchingWindowInSeconds": 0,
+      "ParallelizationFactor": 1,
+      "EventSourceArn": "<arn>",
+      "FunctionArn": "<arn>",
+      "LastModified": "<date>",
+      "LastProcessingResult": "No records processed",
+      "State": "Creating",
+      "StateTransitionReason": "User action",
+      "DestinationConfig": {
+        "OnFailure": {}
+      },
+      "MaximumRecordAgeInSeconds": -1,
+      "BisectBatchOnFunctionError": false,
+      "MaximumRetryAttempts": -1,
+      "TumblingWindowInSeconds": 0,
+      "FunctionResponseTypes": []
+    }
+  },
+  "tests/integration/awslambda/test_lambda_integration.py::TestLambdaEventSourceMappings::test_disabled_event_source_mapping_with_dynamodb": {
+    "create_lambda_response": {
+      "CreateFunctionResponse": {
+        "ResponseMetadata": "<response-metadata>",
+        "FunctionName": "<name>",
+        "FunctionArn": "<arn>",
+        "Runtime": "python3.6",
+        "Role": "<arn>",
+        "Handler": "handler.handler",
+        "CodeSize": 264,
+        "Description": "",
+        "Timeout": 30,
+        "MemorySize": 128,
+        "LastModified": "<date>",
+        "CodeSha256": "<sha>",
+        "Version": "$LATEST",
+        "Environment": {
+          "Variables": {}
+        },
+        "TracingConfig": {
+          "Mode": "PassThrough"
+        },
+        "RevisionId": "<uuid>",
+        "State": "Pending",
+        "StateReason": "The function is being created.",
+        "StateReasonCode": "Creating",
+        "PackageType": "Zip",
+        "Architectures": [
+          "x86_64"
+        ],
+        "EphemeralStorage": {
+          "Size": 512
+        }
+      },
+      "CreateEventSourceMappingResponse": null
+    },
+    "create_table_result": {
+      "TableDescription": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "<name>",
+            "AttributeType": "S"
+          }
+        ],
+        "TableName": "<name>",
+        "KeySchema": [
+          {
+            "AttributeName": "<name>",
+            "KeyType": "HASH"
+          }
+        ],
+        "TableStatus": "CREATING",
+        "CreationDateTime": "<date>",
+        "ProvisionedThroughput": {
+          "NumberOfDecreasesToday": 0,
+          "ReadCapacityUnits": 10,
+          "WriteCapacityUnits": 10
+        },
+        "TableSizeBytes": 0,
+        "ItemCount": 0,
+        "TableArn": "<arn>",
+        "TableId": "<uuid>",
+        "StreamSpecification": {
+          "StreamEnabled": true,
+          "StreamViewType": "NEW_IMAGE"
+        },
+        "LatestStreamLabel": "<latest-stream-label>",
+        "LatestStreamArn": "<arn>"
+      },
+      "ResponseMetadata": "<response-metadata>"
+    },
+    "describe_table": {
+      "Table": {
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "<name>",
+            "AttributeType": "S"
+          }
+        ],
+        "TableName": "<name>",
+        "KeySchema": [
+          {
+            "AttributeName": "<name>",
+            "KeyType": "HASH"
+          }
+        ],
+        "TableStatus": "ACTIVE",
+        "CreationDateTime": "<date>",
+        "ProvisionedThroughput": {
+          "NumberOfDecreasesToday": 0,
+          "ReadCapacityUnits": 10,
+          "WriteCapacityUnits": 10
+        },
+        "TableSizeBytes": 0,
+        "ItemCount": 0,
+        "TableArn": "<arn>",
+        "TableId": "<uuid>",
+        "StreamSpecification": {
+          "StreamEnabled": true,
+          "StreamViewType": "NEW_IMAGE"
+        },
+        "LatestStreamLabel": "<latest-stream-label>",
+        "LatestStreamArn": "<arn>"
+      },
+      "ResponseMetadata": "<response-metadata>"
+    },
+    "describe_stream": {
+      "StreamDescription": {
+        "StreamArn": "<arn>",
+        "StreamLabel": "<stream-label>",
+        "StreamStatus": "ENABLED",
+        "StreamViewType": "NEW_IMAGE",
+        "CreationRequestDateTime": "<date>",
+        "TableName": "<name>",
+        "KeySchema": [
+          {
+            "AttributeName": "<name>",
+            "KeyType": "HASH"
+          }
+        ],
+        "Shards": "<sha>"
+      },
+      "ResponseMetadata": "<response-metadata>"
+    },
+    "events_1": {
+      "events": [
+        {
+          "Records": [
+            {
+              "eventID": "<event-id>",
+              "eventName": "<name>",
+              "eventVersion": "1.1",
+              "eventSource": "aws:dynamodb",
+              "awsRegion": "us-east-2",
+              "dynamodb": {
+                "ApproximateCreationDateTime": "<approx-creation-datetime>",
+                "Keys": {
+                  "id": {
+                    "S": "<event-id-1>"
+                  }
+                },
+                "NewImage": {
+                  "data": {
+                    "S": "data1"
+                  },
+                  "id": {
+                    "S": "<event-id-1>"
+                  }
+                },
+                "SequenceNumber": "<seq-nr>",
+                "SizeBytes": 29,
+                "StreamViewType": "NEW_IMAGE"
+              },
+              "eventSourceARN": "<arn>"
+            }
+          ]
+        }
+      ]
+    },
+    "update_esm_result": {
+      "ResponseMetadata": "<response-metadata>",
+      "UUID": "<uuid>",
+      "StartingPosition": "TRIM_HORIZON",
+      "BatchSize": 100,
+      "MaximumBatchingWindowInSeconds": 1,
+      "ParallelizationFactor": 1,
+      "EventSourceArn": "<arn>",
+      "FunctionArn": "<arn>",
+      "LastModified": "<date>",
+      "LastProcessingResult": "OK",
+      "State": "Disabling",
+      "StateTransitionReason": "User action",
+      "DestinationConfig": {
+        "OnFailure": {}
+      },
+      "MaximumRecordAgeInSeconds": -1,
+      "BisectBatchOnFunctionError": false,
+      "MaximumRetryAttempts": -1,
+      "TumblingWindowInSeconds": 0,
+      "FunctionResponseTypes": []
+    },
+    "events_2": {
+      "events": [
+        {
+          "Records": [
+            {
+              "eventID": "<event-id>",
+              "eventName": "<name>",
+              "eventVersion": "1.1",
+              "eventSource": "aws:dynamodb",
+              "awsRegion": "us-east-2",
+              "dynamodb": {
+                "ApproximateCreationDateTime": "<approx-creation-datetime>",
+                "Keys": {
+                  "id": {
+                    "S": "<event-id-1>"
+                  }
+                },
+                "NewImage": {
+                  "data": {
+                    "S": "data1"
+                  },
+                  "id": {
+                    "S": "<event-id-1>"
+                  }
+                },
+                "SequenceNumber": "<seq-nr>",
+                "SizeBytes": 29,
+                "StreamViewType": "NEW_IMAGE"
+              },
+              "eventSourceARN": "<arn>"
+            }
+          ]
+        }
+      ]
+    }
   }
 }

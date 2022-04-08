@@ -29,14 +29,12 @@ from .test_lambda import (
     is_old_provider,
 )
 
-TEST_STAGE_NAME = "testing"
-TEST_SNS_TOPIC_NAME = "sns-topic-1"
-
 THIS_FOLDER = os.path.dirname(os.path.realpath(__file__))
 TEST_LAMBDA_PARALLEL_FILE = os.path.join(THIS_FOLDER, "functions", "lambda_parallel.py")
 
 
 class TestLambdaEventSourceMappings:
+    @pytest.mark.snapshot
     def test_event_source_mapping_default_batch_size(
         self,
         create_lambda_function,
@@ -47,7 +45,13 @@ class TestLambdaEventSourceMappings:
         dynamodb_client,
         dynamodb_create_table,
         lambda_su_role,
+        snapshot,
     ):
+        """
+        TODO: describe test intent
+        """
+        snapshot.skip_key(re.compile("LatestStreamLabel"), "<stream-label>")
+
         function_name = f"lambda_func-{short_uid()}"
         queue_name_1 = f"queue-{short_uid()}-1"
         queue_name_2 = f"queue-{short_uid()}-2"
@@ -66,6 +70,7 @@ class TestLambdaEventSourceMappings:
         rs = lambda_client.create_event_source_mapping(
             EventSourceArn=queue_arn_1, FunctionName=function_name
         )
+        snapshot.assert_match("create_esm", rs)
         assert BATCH_SIZE_RANGES["sqs"][0] == rs["BatchSize"]
         uuid = rs["UUID"]
 
@@ -95,11 +100,13 @@ class TestLambdaEventSourceMappings:
             )
         e.match(INVALID_PARAMETER_VALUE_EXCEPTION)
 
-        table_description = dynamodb_create_table(
+        create_table_result = dynamodb_create_table(
             table_name=ddb_table,
             partition_key="id",
             stream_view_type="NEW_IMAGE",
-        )["TableDescription"]
+        )
+        snapshot.assert_match("create_table_result", create_table_result)
+        table_description = create_table_result["TableDescription"]
 
         # table ARNs are not sufficient as event source, needs to be a dynamodb stream arn
         if not is_old_provider():
@@ -117,9 +124,11 @@ class TestLambdaEventSourceMappings:
             FunctionName=function_name,
             StartingPosition="LATEST",
         )
+        snapshot.assert_match("create_esm_withlatest_stream_arn", rs)
 
         assert BATCH_SIZE_RANGES["dynamodb"][0] == rs["BatchSize"]
 
+    @pytest.mark.snapshot
     def test_disabled_event_source_mapping_with_dynamodb(
         self,
         create_lambda_function,
@@ -130,20 +139,35 @@ class TestLambdaEventSourceMappings:
         logs_client,
         dynamodbstreams_client,
         lambda_su_role,
+        snapshot,
     ):
+        """
+        TODO: describe test intent
+        """
+        snapshot.skip_key(re.compile("StreamLabel"), "<stream-label>")
+        snapshot.skip_key(re.compile("eventID"), "<event-id>")
+        snapshot.skip_key(re.compile("SequenceNumber"), "<seq-nr>")
+        snapshot.skip_key(re.compile("ApproximateCreationDateTime"), "<approx-creation-datetime>")
+        snapshot.skip_key(re.compile("LatestStreamLabel"), "<latest-stream-label>")
+
+        # TODO: region
+
         function_name = f"lambda_func-{short_uid()}"
         ddb_table = f"ddb_table-{short_uid()}"
 
-        create_lambda_function(
+        create_lambda_response = create_lambda_function(
             func_name=function_name,
             handler_file=TEST_LAMBDA_PYTHON_ECHO,
             runtime=LAMBDA_RUNTIME_PYTHON36,
             role=lambda_su_role,
         )
+        snapshot.assert_match("create_lambda_response", create_lambda_response)
 
-        latest_stream_arn = dynamodb_create_table(
+        create_table_result = dynamodb_create_table(
             table_name=ddb_table, partition_key="id", stream_view_type="NEW_IMAGE"
-        )["TableDescription"]["LatestStreamArn"]
+        )
+        snapshot.assert_match("create_table_result", create_table_result)
+        latest_stream_arn = create_table_result["TableDescription"]["LatestStreamArn"]
 
         rs = lambda_client.create_event_source_mapping(
             FunctionName=function_name,
@@ -160,6 +184,7 @@ class TestLambdaEventSourceMappings:
             )
 
         assert poll_condition(wait_for_table_created, timeout=30)
+        snapshot.assert_match("describe_table", dynamodb_client.describe_table(TableName=ddb_table))
 
         def wait_for_stream_created():
             return (
@@ -170,6 +195,9 @@ class TestLambdaEventSourceMappings:
             )
 
         assert poll_condition(wait_for_stream_created, timeout=30)
+        snapshot.assert_match(
+            "describe_stream", dynamodbstreams_client.describe_stream(StreamArn=latest_stream_arn)
+        )
 
         table = dynamodb_resource.Table(ddb_table)
 
@@ -177,6 +205,8 @@ class TestLambdaEventSourceMappings:
             {"id": short_uid(), "data": "data1"},
             {"id": short_uid(), "data": "data2"},
         ]
+        snapshot.replace_value(re.compile(items[0]["id"]), "<event-id-1>")
+        snapshot.replace_value(re.compile(items[1]["id"]), "<event-id-2>")
 
         table.put_item(Item=items[0])
 
@@ -188,20 +218,28 @@ class TestLambdaEventSourceMappings:
 
         # might take some time against AWS
         retry(assert_events, sleep=3, retries=10)
+        snapshot.assert_match(
+            "events_1", {"events": get_lambda_log_events(function_name, logs_client=logs_client)}
+        )
 
         # disable event source mapping
-        lambda_client.update_event_source_mapping(UUID=uuid, Enabled=False)
+        update_esm_result = lambda_client.update_event_source_mapping(UUID=uuid, Enabled=False)
+        snapshot.assert_match("update_esm_result", update_esm_result)
 
         table.put_item(Item=items[1])
         events = get_lambda_log_events(function_name, logs_client=logs_client)
+        snapshot.assert_match("events_2", {"events": events})
 
         # lambda no longer invoked, still have 1 event
         assert 1 == len(events[0]["Records"])
 
     # TODO invalid test against AWS, this behavior just is not correct
     def test_deletion_event_source_mapping_with_dynamodb(
-        self, create_lambda_function, lambda_client, dynamodb_client, lambda_su_role
+        self, create_lambda_function, lambda_client, dynamodb_client, lambda_su_role, snapshot
     ):
+        """
+        TODO: describe test intent
+        """
         function_name = f"lambda_func-{short_uid()}"
         ddb_table = f"ddb_table-{short_uid()}"
 
@@ -248,6 +286,9 @@ class TestLambdaEventSourceMappings:
         logs_client,
         lambda_su_role,
     ):
+        """
+        TODO: describe test intent
+        """
         function_name = f"lambda_func-{short_uid()}"
         queue_name_1 = f"queue-{short_uid()}-1"
 
@@ -287,6 +328,9 @@ class TestLambdaEventSourceMappings:
         wait_for_stream_ready,
         logs_client,
     ):
+        """
+        TODO: describe test intent
+        """
         function_name = f"lambda_func-{short_uid()}"
         stream_name = f"test-foobar-{short_uid()}"
 
@@ -352,6 +396,9 @@ class TestLambdaEventSourceMappings:
         logs_client,
         lambda_client,
     ):
+        """
+        TODO: describe test intent
+        """
         function_name = f"{TEST_LAMBDA_FUNCTION_PREFIX}-{short_uid()}"
         permission_id = f"test-statement-{short_uid()}"
 
@@ -399,38 +446,51 @@ class TestLambdaEventSourceMappings:
 
 
 class TestLambdaHttpInvocation:
-    def test_http_invocation_with_apigw_proxy(self, create_lambda_function):
+    # TODO: verify
+    @pytest.mark.snapshot
+    def test_http_invocation_with_apigw_proxy(
+        self, lambda_client, create_lambda_function, snapshot
+    ):
+        """
+        1. Create API GW (v1) + lambda proxy integration
+        2. Send POST request and verify call context
+        """
+        stage_name = "testing"
         lambda_name = f"test_lambda_{short_uid()}"
         lambda_resource = "/api/v1/{proxy+}"
         lambda_path = "/api/v1/hello/world"
-        lambda_request_context_path = "/" + TEST_STAGE_NAME + lambda_path
+        lambda_request_context_path = "/" + stage_name + lambda_path
         lambda_request_context_resource_path = lambda_resource
 
         # create lambda function
-        create_lambda_function(
+        create_lambda_result = create_lambda_function(
             func_name=lambda_name,
             handler_file=TEST_LAMBDA_PYTHON,
             libs=TEST_LAMBDA_LIBS,
         )
+        snapshot.assert_match("create_lambda_result", create_lambda_result)
 
         # create API Gateway and connect it to the Lambda proxy backend
-        lambda_uri = aws_stack.lambda_function_arn(lambda_name)
-        target_uri = f"arn:aws:apigateway:{aws_stack.get_region()}:lambda:path/2015-03-31/functions/{lambda_uri}/invocations"
+        get_function_result = lambda_client.get_function(FunctionName=lambda_name)
+        snapshot.assert_match("get_function_result", get_function_result)
+        lambda_arn = get_function_result["Configuration"]["FunctionArn"]
+        target_uri = f"arn:aws:apigateway:{aws_stack.get_region()}:lambda:path/2015-03-31/functions/{lambda_arn}/invocations"
 
         result = testutil.connect_api_gateway_to_http_with_lambda_proxy(
             "test_gateway2",
             target_uri,
             path=lambda_resource,
-            stage_name=TEST_STAGE_NAME,
+            stage_name=stage_name,
         )
+        snapshot.assert_match("api", result)
 
         api_id = result["id"]
-        url = path_based_url(api_id=api_id, stage_name=TEST_STAGE_NAME, path=lambda_path)
+        url = path_based_url(api_id=api_id, stage_name=stage_name, path=lambda_path)
         result = safe_requests.post(
             url, data=b"{}", headers={"User-Agent": "python-requests/testing"}
         )
         content = json.loads(result.content)
-
+        snapshot.assert_match("content", content)
         assert lambda_path == content["path"]
         assert lambda_resource == content["resource"]
         assert lambda_request_context_path == content["requestContext"]["path"]
@@ -451,10 +511,17 @@ class TestKinesisSource:
         lambda_su_role,
         snapshot,
     ):
+        """
+        1. Create Resources + EventSourceMapping (Kinesis => Lambda) with batchsize 10 + TRIM_HORIZON
+        2. Put 10 items into kinesis, Put 10 further items into kinesis
+        3 Lambda Functions should have been invoked exactly twice (once with each batch of 10 events)
+        """
         snapshot.skip_key(re.compile("sequenceNumber", flags=re.IGNORECASE), "<seq-nr>")
         snapshot.skip_key(re.compile("ShardId"), "<shard-id>")
         snapshot.skip_key(re.compile("eventID"), "<event-id>")
         snapshot.skip_key(re.compile("executionStart"), "<execution-start>")
+        # TODO: /create_esm/State
+        # TODO: /describe_kinesis_stream/StreamDescription/StreamStatus
 
         function_name = f"lambda_func-{short_uid()}"
         stream_name = f"test-foobar-{short_uid()}"
@@ -525,7 +592,4 @@ class TestKinesisSource:
         assertEvent(events[0], 0)
         assertEvent(events[1], 1)
 
-        assert (events[1]["executionStart"] - events[0]["executionStart"]) > 5
-
-        # TODO: /create_esm/State
-        # TODO: /describe_kinesis_stream/StreamDescription/StreamStatus
+        assert (events[1]["executionStart"] - events[0]["executionStart"]) > 5  # TODO: ?
