@@ -77,6 +77,11 @@ def create_lambda_function_aws(
             LOG.debug(f"Unable to delete function {arn=} in cleanup")
 
 
+# 1. AWS mit --snapshot-update
+# 2. AWS mit --snapshot-verify
+# 3. localstack mit --snapshot-verify
+
+
 @pytest.mark.snapshot
 @pytest.mark.aws_compatible
 class TestLambdaAsfApi:
