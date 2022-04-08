@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import re
 import time
 from unittest.mock import patch
 
@@ -436,6 +437,7 @@ class TestLambdaHttpInvocation:
         assert lambda_request_context_resource_path == content["requestContext"]["resourcePath"]
 
 
+@pytest.mark.snapshot
 class TestKinesisSource:
     @patch.object(config, "SYNCHRONOUS_KINESIS_EVENTS", False)
     def test_kinesis_lambda_parallelism(
@@ -447,7 +449,13 @@ class TestKinesisSource:
         wait_for_stream_ready,
         logs_client,
         lambda_su_role,
+        snapshot,
     ):
+        snapshot.skip_key(re.compile("sequenceNumber", flags=re.IGNORECASE), "<seq-nr>")
+        snapshot.skip_key(re.compile("ShardId"), "<shard-id>")
+        snapshot.skip_key(re.compile("eventID"), "<event-id>")
+        snapshot.skip_key(re.compile("executionStart"), "<execution-start>")
+
         function_name = f"lambda_func-{short_uid()}"
         stream_name = f"test-foobar-{short_uid()}"
 
@@ -459,25 +467,27 @@ class TestKinesisSource:
         )
 
         kinesis_create_stream(StreamName=stream_name, ShardCount=1)
-        stream_arn = kinesis_client.describe_stream(StreamName=stream_name)["StreamDescription"][
-            "StreamARN"
-        ]
+        describe_stream_result = kinesis_client.describe_stream(StreamName=stream_name)
+        snapshot.assert_match("describe_kinesis_stream", describe_stream_result)
+        stream_arn = describe_stream_result["StreamDescription"]["StreamARN"]
 
         wait_for_stream_ready(stream_name=stream_name)
 
-        lambda_client.create_event_source_mapping(
+        create_esm_result = lambda_client.create_event_source_mapping(
             EventSourceArn=stream_arn,
             FunctionName=function_name,
             StartingPosition="TRIM_HORIZON",
             BatchSize=10,
         )
+        snapshot.assert_match("create_esm", create_esm_result)
 
         stream_summary = kinesis_client.describe_stream_summary(StreamName=stream_name)
-        assert 1 == stream_summary["StreamDescriptionSummary"]["OpenShardCount"]
+        snapshot.assert_match("stream_summary", stream_summary)
+
         num_events_kinesis = 10
         # assure async call
         start = time.perf_counter()
-        kinesis_client.put_records(
+        put_records_result = kinesis_client.put_records(
             Records=[
                 {"Data": '{"batch": 0}', "PartitionKey": f"test_{i}"}
                 for i in range(0, num_events_kinesis)
@@ -485,13 +495,15 @@ class TestKinesisSource:
             StreamName=stream_name,
         )
         assert (time.perf_counter() - start) < 1  # this should not take more than a second
-        kinesis_client.put_records(
+        put_records_result_2 = kinesis_client.put_records(
             Records=[
                 {"Data": '{"batch": 1}', "PartitionKey": f"test_{i}"}
                 for i in range(0, num_events_kinesis)
             ],
             StreamName=stream_name,
         )
+        snapshot.assert_match("put_records_result", put_records_result)
+        snapshot.assert_match("put_records_result_2", put_records_result_2)
 
         def get_events():
             events = get_lambda_log_events(
@@ -501,19 +513,9 @@ class TestKinesisSource:
             return events
 
         events = retry(get_events, retries=30)
+        snapshot.assert_match("lambda_log_events", {"events": events})
 
         def assertEvent(event, batch_no):
-            assert 10 == len(event["event"]["Records"])
-
-            assert "eventID" in event["event"]["Records"][0]
-            assert "eventSourceARN" in event["event"]["Records"][0]
-            assert "eventSource" in event["event"]["Records"][0]
-            assert "eventVersion" in event["event"]["Records"][0]
-            assert "eventName" in event["event"]["Records"][0]
-            assert "invokeIdentityArn" in event["event"]["Records"][0]
-            assert "awsRegion" in event["event"]["Records"][0]
-            assert "kinesis" in event["event"]["Records"][0]
-
             assert {"batch": batch_no} == json.loads(
                 base64.b64decode(event["event"]["Records"][0]["kinesis"]["data"]).decode(
                     config.DEFAULT_ENCODING
@@ -524,3 +526,6 @@ class TestKinesisSource:
         assertEvent(events[1], 1)
 
         assert (events[1]["executionStart"] - events[0]["executionStart"]) > 5
+
+        # TODO: /create_esm/State
+        # TODO: /describe_kinesis_stream/StreamDescription/StreamStatus

@@ -45,7 +45,8 @@ def pytest_runtest_makereport(item: Item, call: CallInfo[None]) -> Optional[Test
 
 
 @pytest.fixture(name="snapshot", scope="function")
-def fixture_snapshot(request: SubRequest):
+def fixture_snapshot(request: SubRequest, sts_client):
+
     sm = SnapshotManager(
         file_path=os.path.join(
             request.fspath.dirname, f"{request.fspath.purebasename}.snapshot.json"
@@ -54,6 +55,10 @@ def fixture_snapshot(request: SubRequest):
         update=request.config.option.snapshot_update,
         verify=request.config.option.snapshot_verify,
     )
+    # TODO: cache this
+    account_id = sts_client.get_caller_identity()["Account"]
+    sm.register_replacement(re.compile(account_id), "1" * 12)
+
     yield sm
     sm.persist_state()
 
@@ -113,13 +118,13 @@ class SnapshotManager:
         self.register_replacement(PATTERN_ISO8601, "<date>")
         self.register_replacement(PATTERN_S3_URL, "<s3-url>")
         self.register_replacement(PATTERN_SQS_URL, "<sqs-url>")
-        self.register_replacement(re.compile(r"\d{12}"), "012345678901")
 
         self.skip_key(re.compile(r"^.*Name$"), "<name>")
         self.skip_key(re.compile(r"^.*ResponseMetadata$"), "<response-metadata>")
         self.skip_key(re.compile(r"^.*Location$"), "<location>")
+        self.skip_key(re.compile(r"^.*timestamp.*$", flags=re.IGNORECASE), "<timestamp>")
         self.skip_key(
-            re.compile(r"^.*sha.*$", flags=re.RegexFlag.IGNORECASE), "<sha>"
+            re.compile(r"^.*sha.*$", flags=re.IGNORECASE), "<sha>"
         )  # TODO: instead of skipping, make zip building reproducable
 
     def register_replacement(self, pattern: Pattern[str], value: str):
@@ -175,6 +180,9 @@ class SnapshotManager:
         Internally this raises an AssertionError and properly handles output formatting for the diff
         """
         __tracebackhide__ = True
+        if not self.update and not self.verify:
+            return
+
         result = self.match(key, obj)
         self.results.append(result)
         if not result and self.verify:
