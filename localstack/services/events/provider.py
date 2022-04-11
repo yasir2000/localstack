@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from moto.events.responses import EventsHandler as MotoEventsHandler
 
@@ -93,6 +93,22 @@ class EventsProvider(EventsApi):
             raise Exception("Unable to parse events schedule expression: %s" % schedule)
         return schedule
 
+    @staticmethod
+    def put_rule_job_scheduler(
+        name: Optional[RuleName],
+        state: Optional[RuleState],
+        schedule_expression: Optional[ScheduleExpression],
+    ):
+        enabled = state != "DISABLED"
+        if schedule_expression:
+            job_func = EventsProvider.get_scheduled_rule_func(name)
+            cron = EventsProvider.convert_schedule_to_cron(schedule_expression)
+            LOG.debug("Adding new scheduled Events rule with cron schedule %s", cron)
+
+            job_id = JobScheduler.instance().add_job(job_func, cron, enabled)
+            rule_scheduled_jobs = EventsBackend.get().rule_scheduled_jobs
+            rule_scheduled_jobs[name] = job_id
+
     def put_rule(
         self,
         context: RequestContext,
@@ -105,18 +121,7 @@ class EventsProvider(EventsApi):
         tags: TagList = None,
         event_bus_name: EventBusNameOrArn = None,
     ) -> PutRuleResponse:
-        schedule = schedule_expression
-        enabled = state != "DISABLED"
-
-        if schedule:
-            job_func = self.get_scheduled_rule_func(name)
-            cron = self.convert_schedule_to_cron(schedule)
-            LOG.debug("Adding new scheduled Events rule with cron schedule %s", cron)
-
-            job_id = JobScheduler.instance().add_job(job_func, cron, enabled)
-            rule_scheduled_jobs = EventsBackend.get().rule_scheduled_jobs
-            rule_scheduled_jobs[name] = job_id
-
+        self.put_rule_job_scheduler(name, state, schedule_expression)
         return call_moto(context)
 
     def delete_rule(
