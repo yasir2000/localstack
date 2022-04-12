@@ -34,11 +34,7 @@ jdk.localedata --include-locales en,th \
 
 
 # base: Stage which installs necessary runtime dependencies (OS packages, java, maven,...)
-<<<<<<< HEAD
-FROM python:3.8.12-slim-buster@sha256:26ab58f6b8936fe59303b0ca0e915d5f9e071ef8b9bf7b3d716b4068f11443dc as base
-=======
 FROM python:3.10.2-slim-buster@sha256:32190393b82d91e98ae65b1071273e5fa32e737c855b589488d90d257a022503 as base
->>>>>>> 99c0aeb5 (upgrade python version to 3.10)
 ARG TARGETARCH
 
 # Install runtime OS package dependencies
