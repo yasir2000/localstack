@@ -7,7 +7,7 @@
       "Runtime": "python3.9",
       "Role": "<arn>",
       "Handler": "index.handler",
-      "CodeSize": 276,
+      "CodeSize": 277,
       "Description": "",
       "Timeout": 3,
       "MemorySize": 128,
@@ -32,7 +32,7 @@
     "lambda_get_fn": {
       "ResponseMetadata": "<response-metadata>",
       "Configuration": {
-        "FunctionName": "<name>",
+        "FunctionName": "<name:1>",
         "FunctionArn": "<arn>",
         "Runtime": "python3.9",
         "Role": "<arn>",
@@ -65,7 +65,7 @@
     },
     "lambda_invoke_result": {
       "ResponseMetadata": "<response-metadata>",
-      "StatusCode": 200,
+      "StatusCode": 201,
       "ExecutedVersion": "$LATEST",
       "Payload": "{}"
     }

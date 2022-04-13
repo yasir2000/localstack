@@ -40,8 +40,21 @@ def pytest_runtest_makereport(item: Item, call: CallInfo[None]) -> Optional[Test
 
     if call.excinfo is not None and isinstance(call.excinfo.value, SnapshotAssertionError):
         err: SnapshotAssertionError = call.excinfo.value
+
+        # r = err.result.result
+        # r.tree['']
         report.longrepr = json.dumps(json.loads(err.result.result.to_json()), indent=2)
     return report
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_call(item: Item) -> None:
+    call: CallInfo = yield
+    # r = call.result
+    # TODO: extremely dirty... maybe it would be better to find a way to fail the test itself instead?
+    # item.repo
+    sm = item.funcargs["snapshot"]
+    sm.assert_all()
+
 
 
 @pytest.fixture(name="snapshot", scope="function")
@@ -60,14 +73,16 @@ def fixture_snapshot(request: SubRequest, sts_client):
     sm.register_replacement(re.compile(account_id), "1" * 12)
 
     yield sm
+
     sm.persist_state()
+    # sm.assert_all()
 
 
 class SnapshotMatchResult:
     def __init__(self, a: dict, b: dict):
         self.a = a
         self.b = b
-        self.result = DeepDiff(a, b)
+        self.result = DeepDiff(a, b, verbose_level=2)
 
     def __bool__(self) -> bool:
         return not self.result
@@ -91,7 +106,9 @@ class SnapshotManager:
     """
 
     results: List[SnapshotMatchResult]
-    state: Dict[str, dict]
+    recorded_state: Dict[str, dict]
+    observed_state: Dict[str, dict]
+
     called_keys: Set[str]
 
     replacers: List[Tuple[Pattern[str], str]]
@@ -99,7 +116,7 @@ class SnapshotManager:
     replace_values: List[Tuple[Pattern[str], str]]
 
     def __init__(
-        self, *, file_path: str, update: bool, scope_key: str, verify: Optional[bool] = False
+        self, *, file_path: str,  scope_key: str, update: Optional[bool] = False, verify: Optional[bool] = False
     ):
         self.verify = verify
         self.update = update
@@ -110,9 +127,9 @@ class SnapshotManager:
         self.skip_keys = []
         self.replace_values = []
         self.results = []
-        self.state = self.load_state()
-        if scope_key not in self.state:
-            self.state[scope_key] = {}
+
+        self.observed_state = {}
+        self.recorded_state = self.load_state()
 
         # registering some defaults
         self.register_replacement(PATTERN_ARN, "<arn>")
@@ -127,7 +144,7 @@ class SnapshotManager:
         self.skip_key(re.compile(r"^.*timestamp.*$", flags=re.IGNORECASE), "<timestamp>")
         self.skip_key(
             re.compile(r"^.*sha.*$", flags=re.IGNORECASE), "<sha>"
-        )  # TODO: instead of skipping, make zip building reproducable
+        )  # TODO: instead of skipping, make zip building reproducible
 
     def register_replacement(self, pattern: Pattern[str], value: str):
         self.replacers.append((pattern, value))
@@ -140,9 +157,12 @@ class SnapshotManager:
 
     def persist_state(self) -> None:
         if self.update:
-            with open(self.file_path, "w") as fd:
+            with open(self.file_path, "w+") as fd:
                 try:
-                    fd.write(json.dumps(self.state, indent=2))
+                    content = fd.read()
+                    full_state = json.loads(content or "{}")
+                    full_state[self.scope_key] = self.observed_state
+                    fd.write(json.dumps(full_state, indent=2))
                 except Exception as e:
                     LOG.exception(e)
 
@@ -151,14 +171,14 @@ class SnapshotManager:
             with open(self.file_path, "r") as fd:
                 content = fd.read()
                 if content:
-                    return json.loads(content)
+                    return json.loads(content).get(self.scope_key, {})
                 else:
                     return {}
         except FileNotFoundError:
             return {}
 
     def _update(self, key: str, obj_state: dict) -> None:
-        self.state[self.scope_key][key] = obj_state
+        self.observed_state[key] = obj_state
 
     def match(self, key: str, obj: dict) -> SnapshotMatchResult:
         __tracebackhide__ = True
@@ -168,12 +188,13 @@ class SnapshotManager:
         self.called_keys.add(key)
 
         obj_state = self._transform(obj)
+        self.observed_state[key] = obj_state
 
         if self.update:
             self._update(key, obj_state)
             return SnapshotMatchResult({}, {})
 
-        sub_state = self.state[self.scope_key].get(key)
+        sub_state = self.recorded_state.get(key)
         if sub_state is None:
             raise Exception("Please run the test first with --snapshot-update")
 
@@ -187,11 +208,18 @@ class SnapshotManager:
         __tracebackhide__ = True
         if not self.update and not self.verify:
             return
-
         result = self.match(key, obj)
-        self.results.append(result)
+        self.results.append(result)  # TODO: not really needed anymore
+        # if not result and self.verify:
+        #     raise SnapshotAssertionError("Parity snapshot failed", result=result)
+
+    def assert_all(self) -> SnapshotMatchResult:
+        """ use after any assert_match calls to get a combined diff """
+        result = SnapshotMatchResult(self.observed_state, self.recorded_state)
         if not result and self.verify:
             raise SnapshotAssertionError("Parity snapshot failed", result=result)
+        else:
+            return result
 
     def _transform(self, old: dict) -> dict:
         """build a persistable state definition that can later be compared against"""

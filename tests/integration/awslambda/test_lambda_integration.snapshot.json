@@ -782,5 +782,85 @@
         }
       ]
     }
+  },
+  "tests/integration/awslambda/test_lambda_integration.py::TestLambdaEventSourceMappings::test_python_lambda_subscribe_sns_topic": {
+    "lambda_creation_response": {
+      "CreateFunctionResponse": {
+        "ResponseMetadata": "<response-metadata>",
+        "FunctionName": "<name>",
+        "FunctionArn": "<arn>",
+        "Runtime": "python3.6",
+        "Role": "<arn>",
+        "Handler": "handler.handler",
+        "CodeSize": 264,
+        "Description": "",
+        "Timeout": 30,
+        "MemorySize": 128,
+        "LastModified": "<date>",
+        "CodeSha256": "<sha>",
+        "Version": "$LATEST",
+        "Environment": {
+          "Variables": {}
+        },
+        "TracingConfig": {
+          "Mode": "PassThrough"
+        },
+        "RevisionId": "<uuid>",
+        "State": "Pending",
+        "StateReason": "The function is being created.",
+        "StateReasonCode": "Creating",
+        "PackageType": "Zip",
+        "Architectures": [
+          "x86_64"
+        ],
+        "EphemeralStorage": {
+          "Size": 512
+        }
+      },
+      "CreateEventSourceMappingResponse": null
+    },
+    "sns_topic": {
+      "Attributes": {
+        "Policy": "{\"Version\":\"2008-10-17\",\"Id\":\"__default_policy_ID\",\"Statement\":[{\"Sid\":\"__default_statement_ID\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"*\"},\"Action\":[\"SNS:GetTopicAttributes\",\"SNS:SetTopicAttributes\",\"SNS:AddPermission\",\"SNS:RemovePermission\",\"SNS:DeleteTopic\",\"SNS:Subscribe\",\"SNS:ListSubscriptionsByTopic\",\"SNS:Publish\"],\"Resource\":\"<arn>\",\"Condition\":{\"StringEquals\":{\"AWS:SourceOwner\":\"111111111111\"}}}]}",
+        "Owner": "111111111111",
+        "SubscriptionsPending": "0",
+        "TopicArn": "<arn>",
+        "EffectiveDeliveryPolicy": "{\"http\":{\"defaultHealthyRetryPolicy\":{\"minDelayTarget\":20,\"maxDelayTarget\":20,\"numRetries\":3,\"numMaxDelayRetries\":0,\"numNoDelayRetries\":0,\"numMinDelayRetries\":0,\"backoffFunction\":\"linear\"},\"disableSubscriptionOverrides\":false}}",
+        "SubscriptionsConfirmed": "0",
+        "DisplayName": "<name>",
+        "SubscriptionsDeleted": "0"
+      },
+      "ResponseMetadata": "<response-metadata>"
+    },
+    "add_permission_result": {
+      "ResponseMetadata": "<response-metadata>",
+      "Statement": "{\"Sid\":\"test-statement-209fe4db\",\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"sns.amazonaws.com\"},\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"<arn>\",\"Condition\":{\"ArnLike\":{\"AWS:SourceArn\":\"<arn>\"}}}"
+    },
+    "events": {
+      "events": [
+        {
+          "Records": [
+            {
+              "EventSource": "aws:sns",
+              "EventVersion": "1.0",
+              "EventSubscriptionArn": "<arn>",
+              "Sns": {
+                "Type": "Notification",
+                "MessageId": "<uuid>",
+                "TopicArn": "<arn>",
+                "Subject": "[Subject] Test subject",
+                "Message": "Hello world.",
+                "Timestamp": "<timestamp>",
+                "SignatureVersion": "1",
+                "Signature": "jPwZalrsttylFAwy29mZLOZHanD/JrD1It5hXSX5xKT8frizrNCy6E9B2xpZW63FgZC07J2y6wcixPkZ8UwR7j48bKF1Z/gfjynwKFofXq5nfRfvcA2U+sWkaaeEsjgj2iJBNcpLnwH6+ohThof+hjnsthvc4Ppj6yrJ2RgS/XHo38eTHJK9XVRWepovihrfv8VPMIiXZ7yELCVvZSrFl1UfstE8ioXpt8IEgC545Oj1UMFzCu7KGuyWqSQlGUtgayQ0FUxYZdTCopS+3+5KyXOaLdcAb9e3nM6K/7SNpCiUEpH+5+TGSMClPyvf2M1eAR5j5yKyqNZ3zwXNI4VY/g==",
+                "SigningCertUrl": "https://sns.us-east-2.amazonaws.com/SimpleNotificationService-7ff5318490ec183fbaddaa2a969abfda.pem",
+                "UnsubscribeUrl": "https://sns.us-east-2.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=<arn>",
+                "MessageAttributes": {}
+              }
+            }
+          ]
+        }
+      ]
+    }
   }
 }

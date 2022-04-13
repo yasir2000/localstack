@@ -387,6 +387,7 @@ class TestLambdaEventSourceMappings:
         assert "awsRegion" in events[0]["Records"][0]
         assert "kinesis" in events[0]["Records"][0]
 
+    @pytest.mark.snapshot
     def test_python_lambda_subscribe_sns_topic(
         self,
         create_lambda_function,
@@ -395,10 +396,12 @@ class TestLambdaEventSourceMappings:
         sns_topic,
         logs_client,
         lambda_client,
+            snapshot,
+            cloudwatch_client,
+
     ):
-        """
-        TODO: describe test intent
-        """
+
+        """ Lambda with active SNS subscription receives messages sent to topic """
         function_name = f"{TEST_LAMBDA_FUNCTION_PREFIX}-{short_uid()}"
         permission_id = f"test-statement-{short_uid()}"
 
@@ -408,17 +411,20 @@ class TestLambdaEventSourceMappings:
             runtime=LAMBDA_RUNTIME_PYTHON36,
             role=lambda_su_role,
         )
+        snapshot.assert_match("lambda_creation_response", lambda_creation_response)
         lambda_arn = lambda_creation_response["CreateFunctionResponse"]["FunctionArn"]
 
+        snapshot.assert_match("sns_topic", sns_topic)
         topic_arn = sns_topic["Attributes"]["TopicArn"]
 
-        lambda_client.add_permission(
+        add_permission_result = lambda_client.add_permission(
             FunctionName=function_name,
             StatementId=permission_id,
             Action="lambda:InvokeFunction",
             Principal="sns.amazonaws.com",
             SourceArn=topic_arn,
         )
+        snapshot.assert_match("add_permission_result", add_permission_result)
 
         sns_client.subscribe(
             TopicArn=topic_arn,
@@ -439,6 +445,9 @@ class TestLambdaEventSourceMappings:
             regex_filter="Records.*Sns",
             logs_client=logs_client,
         )
+
+
+        snapshot.assert_match("events", {"events": events})
         notification = events[0]["Records"][0]["Sns"]
 
         assert "Subject" in notification
@@ -451,10 +460,7 @@ class TestLambdaHttpInvocation:
     def test_http_invocation_with_apigw_proxy(
         self, lambda_client, create_lambda_function, snapshot
     ):
-        """
-        1. Create API GW (v1) + lambda proxy integration
-        2. Send POST request and verify call context
-        """
+        """ Create and verify APIGateway Lambda proxy integration"""
         stage_name = "testing"
         lambda_name = f"test_lambda_{short_uid()}"
         lambda_resource = "/api/v1/{proxy+}"
@@ -512,6 +518,7 @@ class TestKinesisSource:
         snapshot,
     ):
         """
+        Scenario:
         1. Create Resources + EventSourceMapping (Kinesis => Lambda) with batchsize 10 + TRIM_HORIZON
         2. Put 10 items into kinesis, Put 10 further items into kinesis
         3 Lambda Functions should have been invoked exactly twice (once with each batch of 10 events)

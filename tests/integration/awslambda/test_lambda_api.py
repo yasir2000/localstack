@@ -36,7 +36,7 @@ lambda_asf_only = pytest.mark.skipif(
 )
 
 
-# TODO: move this to fixtures / reconcile with ohter fixture usage
+# TODO: move this to fixtures / reconcile with other fixture usage
 @pytest.fixture
 def create_lambda_function_aws(
     lambda_client,
