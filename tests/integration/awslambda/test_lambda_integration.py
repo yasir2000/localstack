@@ -48,7 +48,7 @@ class TestLambdaEventSourceMappings:
         snapshot,
     ):
         """
-        TODO: describe test intent
+        Verifies EventSourceMapping batch size limits for SQS and dynamodb streams
         """
         snapshot.skip_key(re.compile("LatestStreamLabel"), "<stream-label>")
 
@@ -57,12 +57,13 @@ class TestLambdaEventSourceMappings:
         queue_name_2 = f"queue-{short_uid()}-2"
         ddb_table = f"ddb_table-{short_uid()}"
 
-        create_lambda_function(
+        create_lambda_result = create_lambda_function(
             func_name=function_name,
             handler_file=TEST_LAMBDA_PYTHON_ECHO,
             runtime=LAMBDA_RUNTIME_PYTHON36,
             role=lambda_su_role,
         )
+        snapshot.match("create_lambda_result", create_lambda_result)
 
         queue_url_1 = sqs_create_queue(QueueName=queue_name_1)
         queue_arn_1 = sqs_queue_arn(queue_url_1)
@@ -70,7 +71,7 @@ class TestLambdaEventSourceMappings:
         rs = lambda_client.create_event_source_mapping(
             EventSourceArn=queue_arn_1, FunctionName=function_name
         )
-        snapshot.assert_match("create_esm", rs)
+        snapshot.match("create_esm", rs)
         assert BATCH_SIZE_RANGES["sqs"][0] == rs["BatchSize"]
         uuid = rs["UUID"]
 
@@ -87,6 +88,7 @@ class TestLambdaEventSourceMappings:
                 BatchSize=BATCH_SIZE_RANGES["sqs"][1] + 1,
             )
         e.match(INVALID_PARAMETER_VALUE_EXCEPTION)
+        snapshot.match("sqs_esm_update_exc_batchsize", e.value.response)
 
         queue_url_2 = sqs_create_queue(QueueName=queue_name_2)
         queue_arn_2 = sqs_queue_arn(queue_url_2)
@@ -99,13 +101,14 @@ class TestLambdaEventSourceMappings:
                 BatchSize=BATCH_SIZE_RANGES["sqs"][1] + 1,
             )
         e.match(INVALID_PARAMETER_VALUE_EXCEPTION)
+        snapshot.match("sqs_esm_create_exc_batchsize", e.value.response)
 
         create_table_result = dynamodb_create_table(
             table_name=ddb_table,
             partition_key="id",
             stream_view_type="NEW_IMAGE",
         )
-        snapshot.assert_match("create_table_result", create_table_result)
+        snapshot.match("create_table_result", create_table_result)
         table_description = create_table_result["TableDescription"]
 
         # table ARNs are not sufficient as event source, needs to be a dynamodb stream arn
@@ -116,6 +119,7 @@ class TestLambdaEventSourceMappings:
                     FunctionName=function_name,
                     StartingPosition="LATEST",
                 )
+            snapshot.match("exc_needs_stream_arn")
             e.match(INVALID_PARAMETER_VALUE_EXCEPTION)
 
         # check if event source mapping can be created with latest stream ARN
@@ -124,7 +128,7 @@ class TestLambdaEventSourceMappings:
             FunctionName=function_name,
             StartingPosition="LATEST",
         )
-        snapshot.assert_match("create_esm_withlatest_stream_arn", rs)
+        snapshot.match("create_esm_withlatest_stream_arn", rs)
 
         assert BATCH_SIZE_RANGES["dynamodb"][0] == rs["BatchSize"]
 
@@ -161,12 +165,12 @@ class TestLambdaEventSourceMappings:
             runtime=LAMBDA_RUNTIME_PYTHON36,
             role=lambda_su_role,
         )
-        snapshot.assert_match("create_lambda_response", create_lambda_response)
+        snapshot.match("create_lambda_response", create_lambda_response)
 
         create_table_result = dynamodb_create_table(
             table_name=ddb_table, partition_key="id", stream_view_type="NEW_IMAGE"
         )
-        snapshot.assert_match("create_table_result", create_table_result)
+        snapshot.match("create_table_result", create_table_result)
         latest_stream_arn = create_table_result["TableDescription"]["LatestStreamArn"]
 
         rs = lambda_client.create_event_source_mapping(
@@ -184,7 +188,7 @@ class TestLambdaEventSourceMappings:
             )
 
         assert poll_condition(wait_for_table_created, timeout=30)
-        snapshot.assert_match("describe_table", dynamodb_client.describe_table(TableName=ddb_table))
+        snapshot.match("describe_table", dynamodb_client.describe_table(TableName=ddb_table))
 
         def wait_for_stream_created():
             return (
@@ -195,7 +199,7 @@ class TestLambdaEventSourceMappings:
             )
 
         assert poll_condition(wait_for_stream_created, timeout=30)
-        snapshot.assert_match(
+        snapshot.match(
             "describe_stream", dynamodbstreams_client.describe_stream(StreamArn=latest_stream_arn)
         )
 
@@ -218,17 +222,17 @@ class TestLambdaEventSourceMappings:
 
         # might take some time against AWS
         retry(assert_events, sleep=3, retries=10)
-        snapshot.assert_match(
+        snapshot.match(
             "events_1", {"events": get_lambda_log_events(function_name, logs_client=logs_client)}
         )
 
         # disable event source mapping
         update_esm_result = lambda_client.update_event_source_mapping(UUID=uuid, Enabled=False)
-        snapshot.assert_match("update_esm_result", update_esm_result)
+        snapshot.match("update_esm_result", update_esm_result)
 
         table.put_item(Item=items[1])
         events = get_lambda_log_events(function_name, logs_client=logs_client)
-        snapshot.assert_match("events_2", {"events": events})
+        snapshot.match("events_2", {"events": events})
 
         # lambda no longer invoked, still have 1 event
         assert 1 == len(events[0]["Records"])
@@ -396,12 +400,11 @@ class TestLambdaEventSourceMappings:
         sns_topic,
         logs_client,
         lambda_client,
-            snapshot,
-            cloudwatch_client,
-
+        snapshot,
+        cloudwatch_client,
     ):
 
-        """ Lambda with active SNS subscription receives messages sent to topic """
+        """Lambda with active SNS subscription receives messages sent to topic"""
         function_name = f"{TEST_LAMBDA_FUNCTION_PREFIX}-{short_uid()}"
         permission_id = f"test-statement-{short_uid()}"
 
@@ -411,10 +414,10 @@ class TestLambdaEventSourceMappings:
             runtime=LAMBDA_RUNTIME_PYTHON36,
             role=lambda_su_role,
         )
-        snapshot.assert_match("lambda_creation_response", lambda_creation_response)
+        snapshot.match("lambda_creation_response", lambda_creation_response)
         lambda_arn = lambda_creation_response["CreateFunctionResponse"]["FunctionArn"]
 
-        snapshot.assert_match("sns_topic", sns_topic)
+        snapshot.match("sns_topic", sns_topic)
         topic_arn = sns_topic["Attributes"]["TopicArn"]
 
         add_permission_result = lambda_client.add_permission(
@@ -424,7 +427,7 @@ class TestLambdaEventSourceMappings:
             Principal="sns.amazonaws.com",
             SourceArn=topic_arn,
         )
-        snapshot.assert_match("add_permission_result", add_permission_result)
+        snapshot.match("add_permission_result", add_permission_result)
 
         sns_client.subscribe(
             TopicArn=topic_arn,
@@ -446,8 +449,7 @@ class TestLambdaEventSourceMappings:
             logs_client=logs_client,
         )
 
-
-        snapshot.assert_match("events", {"events": events})
+        snapshot.match("events", {"events": events})
         notification = events[0]["Records"][0]["Sns"]
 
         assert "Subject" in notification
@@ -460,7 +462,7 @@ class TestLambdaHttpInvocation:
     def test_http_invocation_with_apigw_proxy(
         self, lambda_client, create_lambda_function, snapshot
     ):
-        """ Create and verify APIGateway Lambda proxy integration"""
+        """Create and verify APIGateway Lambda proxy integration"""
         stage_name = "testing"
         lambda_name = f"test_lambda_{short_uid()}"
         lambda_resource = "/api/v1/{proxy+}"
@@ -474,11 +476,11 @@ class TestLambdaHttpInvocation:
             handler_file=TEST_LAMBDA_PYTHON,
             libs=TEST_LAMBDA_LIBS,
         )
-        snapshot.assert_match("create_lambda_result", create_lambda_result)
+        snapshot.match("create_lambda_result", create_lambda_result)
 
         # create API Gateway and connect it to the Lambda proxy backend
         get_function_result = lambda_client.get_function(FunctionName=lambda_name)
-        snapshot.assert_match("get_function_result", get_function_result)
+        snapshot.match("get_function_result", get_function_result)
         lambda_arn = get_function_result["Configuration"]["FunctionArn"]
         target_uri = f"arn:aws:apigateway:{aws_stack.get_region()}:lambda:path/2015-03-31/functions/{lambda_arn}/invocations"
 
@@ -488,7 +490,7 @@ class TestLambdaHttpInvocation:
             path=lambda_resource,
             stage_name=stage_name,
         )
-        snapshot.assert_match("api", result)
+        snapshot.match("api", result)
 
         api_id = result["id"]
         url = path_based_url(api_id=api_id, stage_name=stage_name, path=lambda_path)
@@ -496,7 +498,7 @@ class TestLambdaHttpInvocation:
             url, data=b"{}", headers={"User-Agent": "python-requests/testing"}
         )
         content = json.loads(result.content)
-        snapshot.assert_match("content", content)
+        snapshot.match("content", content)
         assert lambda_path == content["path"]
         assert lambda_resource == content["resource"]
         assert lambda_request_context_path == content["requestContext"]["path"]
@@ -542,7 +544,7 @@ class TestKinesisSource:
 
         kinesis_create_stream(StreamName=stream_name, ShardCount=1)
         describe_stream_result = kinesis_client.describe_stream(StreamName=stream_name)
-        snapshot.assert_match("describe_kinesis_stream", describe_stream_result)
+        snapshot.match("describe_kinesis_stream", describe_stream_result)
         stream_arn = describe_stream_result["StreamDescription"]["StreamARN"]
 
         wait_for_stream_ready(stream_name=stream_name)
@@ -553,10 +555,10 @@ class TestKinesisSource:
             StartingPosition="TRIM_HORIZON",
             BatchSize=10,
         )
-        snapshot.assert_match("create_esm", create_esm_result)
+        snapshot.match("create_esm", create_esm_result)
 
         stream_summary = kinesis_client.describe_stream_summary(StreamName=stream_name)
-        snapshot.assert_match("stream_summary", stream_summary)
+        snapshot.match("stream_summary", stream_summary)
 
         num_events_kinesis = 10
         # assure async call
@@ -576,8 +578,8 @@ class TestKinesisSource:
             ],
             StreamName=stream_name,
         )
-        snapshot.assert_match("put_records_result", put_records_result)
-        snapshot.assert_match("put_records_result_2", put_records_result_2)
+        snapshot.match("put_records_result", put_records_result)
+        snapshot.match("put_records_result_2", put_records_result_2)
 
         def get_events():
             events = get_lambda_log_events(
@@ -587,7 +589,7 @@ class TestKinesisSource:
             return events
 
         events = retry(get_events, retries=30)
-        snapshot.assert_match("lambda_log_events", {"events": events})
+        snapshot.match("lambda_log_events", {"events": events})
 
         def assertEvent(event, batch_no):
             assert {"batch": batch_no} == json.loads(
