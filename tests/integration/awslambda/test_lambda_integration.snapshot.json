@@ -1482,7 +1482,7 @@
         "Runtime": "python3.7",
         "Role": "<arn>",
         "Handler": "handler.handler",
-        "CodeSize": 18180968,
+        "CodeSize": 18173255,
         "Description": "",
         "Timeout": 30,
         "MemorySize": 128,
@@ -1517,7 +1517,7 @@
         "Runtime": "python3.7",
         "Role": "<arn>",
         "Handler": "handler.handler",
-        "CodeSize": 18180968,
+        "CodeSize": 18173255,
         "Description": "",
         "Timeout": 30,
         "MemorySize": 128,
@@ -1545,6 +1545,23 @@
         "RepositoryType": "S3",
         "Location": "<location>"
       }
+    },
+    "api": {
+      "ResponseMetadata": "<response-metadata>",
+      "id": "<rest-api-id>",
+      "name": "test_gateway2",
+      "description": "Test description for API \"test_gateway2\"",
+      "createdDate": "<date>",
+      "apiKeySource": "HEADER",
+      "endpointConfiguration": {
+        "types": [
+          "EDGE"
+        ]
+      },
+      "disableExecuteApiEndpoint": false
+    },
+    "content": {
+      "test": "hello world"
     }
   }
 }

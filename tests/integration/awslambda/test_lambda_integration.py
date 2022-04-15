@@ -21,11 +21,9 @@ from localstack.utils.common import retry, safe_requests, short_uid
 from localstack.utils.sync import poll_condition
 from localstack.utils.testutil import check_expected_lambda_log_events_length, get_lambda_log_events
 
-from ..fixtures import only_localstack
 from .test_lambda import (
     TEST_LAMBDA_FUNCTION_PREFIX,
     TEST_LAMBDA_LIBS,
-    TEST_LAMBDA_PYTHON,
     TEST_LAMBDA_PYTHON_ECHO,
     is_old_provider,
 )
@@ -485,24 +483,19 @@ class TestLambdaEventSourceMappings:
 
 
 class TestLambdaHttpInvocation:
-
-    # TODO: make AWS compatible
-    @only_localstack
     def test_http_invocation_with_apigw_proxy(
-        self, lambda_client, create_lambda_function, snapshot
+        self, lambda_client, create_lambda_function, snapshot, apigateway_client, cleanups
     ):
         """Create and verify APIGateway Lambda proxy integration"""
         stage_name = "testing"
         lambda_name = f"test_lambda_{short_uid()}"
         lambda_resource = "/api/v1/{proxy+}"
         lambda_path = "/api/v1/hello/world"
-        lambda_request_context_path = "/" + stage_name + lambda_path
-        lambda_request_context_resource_path = lambda_resource
 
         # create lambda function
         create_lambda_result = create_lambda_function(
             func_name=lambda_name,
-            handler_file=TEST_LAMBDA_PYTHON,
+            handler_file=os.path.join(THIS_FOLDER, "functions/lambda_python_apigwhandler.py"),
             libs=TEST_LAMBDA_LIBS,
         )
         snapshot.match("create_lambda_result", create_lambda_result)
@@ -518,20 +511,26 @@ class TestLambdaHttpInvocation:
             target_uri,
             path=lambda_resource,
             stage_name=stage_name,
+            client=apigateway_client,
         )
-        snapshot.match("api", result)
-
         api_id = result["id"]
-        url = path_based_url(api_id=api_id, stage_name=stage_name, path=lambda_path)
+        snapshot.register_replacement(api_id, "<rest-api-id>")
+        snapshot.match("api", result)
+        cleanups.append(lambda: apigateway_client.delete_rest_api(restApiId=api_id))
+        lambda_client.add_permission(
+            FunctionName=lambda_name, StatementId=f"{short_uid()}", Action="*", Principal="*"
+        )
+
+        url = (
+            f"https://{api_id}.execute-api.us-east-2.amazonaws.com/{stage_name}/{lambda_path}"
+            if os.environ.get("TEST_TARGET") == "AWS_CLOUD"
+            else path_based_url(api_id=api_id, stage_name=stage_name, path=lambda_path)
+        )
         result = safe_requests.post(
             url, data=b"{}", headers={"User-Agent": "python-requests/testing"}
         )
         content = json.loads(result.content)
         snapshot.match("content", content)
-        assert lambda_path == content["path"]
-        assert lambda_resource == content["resource"]
-        assert lambda_request_context_path == content["requestContext"]["path"]
-        assert lambda_request_context_resource_path == content["requestContext"]["resourcePath"]
 
 
 class TestKinesisSource:

@@ -1007,10 +1007,12 @@ def create_api_gateway(
     usage_plan_name=None,
     region_name=None,
     auth_creator_func=None,  # function that receives an api_id and returns an authorizer_id
+    client=None,
 ):
     if enabled_api_keys is None:
         enabled_api_keys = []
-    client = connect_to_service("apigateway", env=env, region_name=region_name)
+    if not client:
+        client = connect_to_service("apigateway", env=env, region_name=region_name)
     resources = resources or []
     stage_name = stage_name or "testing"
     usage_plan_name = usage_plan_name or "Basic Usage"
@@ -1057,6 +1059,7 @@ def create_api_gateway(
                 integrations,
                 env=env,
                 region_name=region_name,
+                client=client,
             )
     # deploy the API gateway
     client.create_deployment(restApiId=api_id, stageName=stage_name)
@@ -1064,11 +1067,12 @@ def create_api_gateway(
 
 
 def create_api_gateway_integrations(
-    api_id, resource_id, method, integrations=None, env=None, region_name=None
+    api_id, resource_id, method, integrations=None, env=None, region_name=None, client=None
 ):
     if integrations is None:
         integrations = []
-    client = connect_to_service("apigateway", env=env, region_name=region_name)
+    if not client:
+        client = connect_to_service("apigateway", env=env, region_name=region_name)
     for integration in integrations:
         req_templates = integration.get("requestTemplates") or {}
         res_templates = integration.get("responseTemplates") or {}
