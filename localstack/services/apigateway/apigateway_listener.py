@@ -68,11 +68,6 @@ from localstack.utils.http import add_query_params_to_url
 
 LOG = logging.getLogger(__name__)
 
-# target ARN patterns
-TARGET_REGEX_PATH_S3_URI = (
-    r"^arn:aws:apigateway:[a-zA-Z0-9\-]+:s3:path/(?P<bucket>[^/]+)/(?P<object>.+)$"
-)
-TARGET_REGEX_ACTION_S3_URI = r"^arn:aws:apigateway:[a-zA-Z0-9\-]+:s3:action/(?:GetObject&Bucket\=(?P<bucket>[^&]+)&Key\=(?P<object>.+))$"
 # regex path pattern for user requests, handles stages like $default
 PATH_REGEX_USER_REQUEST = (
     r"^/restapis/([A-Za-z0-9_\\-]+)(?:/([A-Za-z0-9\_($|%%24)\\-]+))?/%s/(.*)$" % PATH_USER_REQUEST
