@@ -7,7 +7,7 @@ import werkzeug
 from werkzeug.exceptions import NotFound
 
 from localstack.http import Request, Response, Router
-from localstack.http.router import E, RegexConverter, RequestArguments
+from localstack.http.router import E, RegexConverter, RequestArguments, route
 from localstack.utils.common import get_free_tcp_port
 
 
@@ -165,6 +165,50 @@ class TestRouter:
             assert router.dispatch(Request("GET", "/"))
         with pytest.raises(NotFound):
             assert router.dispatch(Request("GET", "/users/12"))
+
+    def test_add_route_endpoint_with_function(self):
+        @route("/users")
+        def user(_: Request, args):
+            assert not args
+            return Response("user")
+
+        @route("/users/<int:user_id>")
+        def user_id(_: Request, args):
+            assert args
+            return Response(f"{args['user_id']}")
+
+        router = Router()
+        router.add_route_endpoint(user)
+        router.add_route_endpoint(user_id)
+
+        assert router.dispatch(Request("GET", "/users")).data == b"user"
+        assert router.dispatch(Request("GET", "/users/123")).data == b"123"
+
+    def test_add_route_endpoint_with_object(self):
+        class MySuperApi:
+            @route("/users")
+            def user(self, _: Request, args):
+                # should be inherited
+                assert not args
+                return Response("user")
+
+        class MyApi(MySuperApi):
+            @route("/users/<int:user_id>")
+            def user_id(self, _: Request, args):
+                assert args
+                return Response(f"{args['user_id']}")
+
+            def foo(self, _: Request, args):
+                # should be ignored
+                raise NotImplementedError
+
+        api = MyApi()
+        router = Router()
+        rules = router.add_route_endpoints(api)
+        assert len(rules) == 2
+
+        assert router.dispatch(Request("GET", "/users")).data == b"user"
+        assert router.dispatch(Request("GET", "/users/123")).data == b"123"
 
 
 class TestWsgiIntegration:
