@@ -10,8 +10,6 @@ from localstack.constants import (
     APPLICATION_JSON,
     HEADER_LOCALSTACK_AUTHORIZATION,
     HEADER_LOCALSTACK_EDGE_URL,
-    LOCALHOST_HOSTNAME,
-    PATH_USER_REQUEST,
 )
 from localstack.services.apigateway import helpers
 from localstack.services.apigateway.context import ApiInvocationContext
@@ -23,7 +21,9 @@ from localstack.services.apigateway.helpers import (
     PATH_REGEX_PATH_MAPPINGS,
     PATH_REGEX_RESPONSES,
     PATH_REGEX_TEST_INVOKE_API,
+    PATH_REGEX_USER_REQUEST,
     PATH_REGEX_VALIDATORS,
+    UrlParts,
     extract_path_params,
     extract_query_string_params,
     get_cors_response,
@@ -54,21 +54,16 @@ from localstack.services.generic_proxy import ProxyListener
 from localstack.utils.analytics import event_publisher
 from localstack.utils.aws import aws_responses, aws_stack
 from localstack.utils.aws.aws_responses import requests_response
+from localstack.utils.aws.request_context import (
+    RequestContextManager,
+    get_region_from_request_context,
+    mock_request_for_region,
+)
 from localstack.utils.common import to_str
 
 # set up logger
 
 LOG = logging.getLogger(__name__)
-
-# regex path pattern for user requests, handles stages like $default
-PATH_REGEX_USER_REQUEST = (
-    r"^/restapis/([A-Za-z0-9_\\-]+)(?:/([A-Za-z0-9\_($|%%24)\\-]+))?/%s/(.*)$" % PATH_USER_REQUEST
-)
-# URL pattern for invocations
-HOST_REGEX_EXECUTE_API = (
-    r"(?:.*://)?([a-zA-Z0-9-]+)\.execute-api\.(%s|([^\.]+)\.amazonaws\.com)(.*)"
-    % LOCALHOST_HOSTNAME
-)
 
 
 class AuthorizationError(Exception):
@@ -77,7 +72,15 @@ class AuthorizationError(Exception):
 
 class ProxyListenerApiGateway(ProxyListener):
     def forward_request(self, method, path, data, headers):
-        invocation_context = ApiInvocationContext(method, path, data, headers)
+        url_parts = UrlParts(method, path, headers)
+        invocation_context = ApiInvocationContext(
+            method,
+            url_parts.invocation_path,
+            data,
+            headers,
+            api_id=url_parts.api_id,
+            stage=url_parts.stage,
+        )
 
         forwarded_for = headers.get(HEADER_LOCALSTACK_EDGE_URL, "")
         if re.match(PATH_REGEX_USER_REQUEST, path) or "execute-api" in forwarded_for:
@@ -379,17 +382,21 @@ def is_api_key_valid(is_api_key_required: bool, headers: Dict[str, str], stage: 
 #     return invocation_context
 
 
-def extract_api_id_from_hostname_in_url(hostname: str) -> str:
-    """Extract API ID 'id123' from URLs like
-    https://id123.execute-api.localhost.localstack.cloud:4566"""
-    match = re.match(HOST_REGEX_EXECUTE_API, hostname)
-    return match.group(1)
+# def extract_api_id_from_hostname_in_url(hostname: str) -> str:
+#     """Extract API ID 'id123' from URLs like
+#     https://id123.execute-api.localhost.localstack.cloud:4566"""
+#     match = re.match(HOST_REGEX_EXECUTE_API, hostname)
+#     return match.group(1)
 
 
 def invoke_rest_api_from_request(invocation_context: ApiInvocationContext):
     # set_api_id_stage_invocation_path(invocation_context)
     try:
-        return invoke_rest_api(invocation_context)
+        context = mock_request_for_region(
+            get_region_from_request_context(), service_name="apigateway"
+        )
+        with RequestContextManager(context):
+            return invoke_rest_api(invocation_context)
     except AuthorizationError as e:
         api_id = invocation_context.api_id
         return make_error_response(f"Not authorized to invoke REST API {api_id}: {e}", 403)
