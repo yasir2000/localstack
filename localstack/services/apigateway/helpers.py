@@ -27,6 +27,8 @@ from localstack.utils.aws.aws_stack import parse_arn
 
 LOG = logging.getLogger(__name__)
 
+REQUEST_TIME_DATE_FORMAT = "%d/%b/%Y:%H:%M:%S %z"
+
 # regex path patterns
 PATH_REGEX_MAIN = r"^/restapis/([A-Za-z0-9_\-]+)/[a-z]+(\?.*)?"
 PATH_REGEX_SUB = r"^/restapis/([A-Za-z0-9_\-]+)/[a-z]+/([A-Za-z0-9_\-]+)/.*"
